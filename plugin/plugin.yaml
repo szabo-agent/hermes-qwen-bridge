@@ -1,0 +1,14 @@
+name: qwen-bridge
+version: 1.0.0
+description: "Bridge between Hermes Agent and Qwen Code — delegate coding tasks to Qwen Code and receive results back for assessment"
+author: hermes-qwen-bridge
+provides_tools:
+  - qwen_task
+  - qwen_task_async
+  - qwen_task_status
+  - qwen_task_result
+  - qwen_sessions
+  - qwen_check
+provides_hooks:
+  - pre_llm_call
+  - on_session_end

@@ -1,0 +1,69 @@
+{
+  "env": {
+    "LLAMACPP_API_KEY": "local"
+  },
+  "modelProviders": {
+    "openai": [
+      {
+        "id": "Qwen3-Coder-30B-A3B-Instruct-UD-Q4_K_XL.gguf",
+        "name": "Qwen3-Coder 30B (local)",
+        "description": "Qwen3-Coder-30B-A3B-Instruct running via llama-cpp at localhost:8082",
+        "envKey": "LLAMACPP_API_KEY",
+        "baseUrl": "http://localhost:8082/v1",
+        "generationConfig": {
+          "timeout": 900000,
+          "maxRetries": 1,
+          "contextWindowSize": 128000,
+          "extra_body": {
+            "enable_thinking": false
+          },
+          "samplingParams": {
+            "temperature": 0.2,
+            "top_p": 0.9,
+            "max_tokens": 16384
+          }
+        }
+      },
+      {
+        "id": "Qwen3-Coder-30B-A3B-Instruct-UD-Q4_K_XL.gguf__thinking",
+        "name": "Qwen3-Coder 30B (local, thinking)",
+        "description": "Same model with extended thinking enabled — slower but better for complex multi-step reasoning",
+        "envKey": "LLAMACPP_API_KEY",
+        "baseUrl": "http://localhost:8082/v1",
+        "generationConfig": {
+          "timeout": 900000,
+          "maxRetries": 1,
+          "contextWindowSize": 128000,
+          "extra_body": {
+            "enable_thinking": true
+          },
+          "samplingParams": {
+            "temperature": 0.2,
+            "top_p": 0.9,
+            "max_tokens": 16384
+          }
+        }
+      }
+    ]
+  },
+  "model": {
+    "name": "Qwen3-Coder-30B-A3B-Instruct-UD-Q4_K_XL.gguf",
+    "generationConfig": {
+      "timeout": 600000,
+      "contextWindowSize": 128000,
+      "samplingParams": {
+        "temperature": 0.2,
+        "top_p": 0.9,
+        "max_tokens": 16384
+      }
+    }
+  },
+  "security": {
+    "auth": {
+      "selectedType": "openai",
+      "baseUrl": "http://localhost:8082/v1",
+      "apiKey": "local"
+    }
+  },
+  "$version": 3
+}
