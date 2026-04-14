@@ -464,6 +464,148 @@ def qwen_sessions(args: dict, **kwargs) -> str:
     }, ensure_ascii=False)
 
 
+# ---------------------------------------------------------------------------
+# Interactive session tool handlers
+# ---------------------------------------------------------------------------
+
+def qwen_session_start(args: dict, **kwargs) -> str:
+    """Start an interactive Qwen Code session in a PTY."""
+    working_dir = (args.get("working_dir") or "").strip()
+    if not working_dir:
+        return json.dumps({"error": "working_dir is required"})
+
+    if not Path(working_dir).is_dir():
+        return json.dumps({"error": f"Directory not found: {working_dir}"})
+
+    from .interactive import start_session, active_session_count
+
+    if active_session_count() >= 3:
+        return json.dumps({
+            "error": "Maximum 3 concurrent interactive sessions. Stop an existing session first.",
+        })
+
+    session = start_session(
+        working_dir=working_dir,
+        model=args.get("model"),
+        auth_type=args.get("auth_type"),
+        approval_mode=args.get("approval_mode", "yolo"),
+        ready_timeout=float(args.get("ready_timeout", 30)),
+    )
+
+    if session.status == "error":
+        return json.dumps({
+            "status": "error",
+            "session_id": session.session_id,
+            "error": session.error,
+        })
+
+    # Read the startup output
+    startup_output = session.new_output()
+
+    return json.dumps({
+        "status": session.status,
+        "session_id": session.session_id,
+        "working_dir": working_dir,
+        "startup_output": startup_output[-1000:] if len(startup_output) > 1000 else startup_output,
+        "message": (
+            f"Interactive Qwen session `{session.session_id}` is {session.status}. "
+            f"Use qwen_session_send to type messages. "
+            f"Use qwen_session_stop when done."
+        ),
+    }, ensure_ascii=False)
+
+
+def qwen_session_send(args: dict, **kwargs) -> str:
+    """Send a message to an interactive Qwen session and wait for response."""
+    session_id = (args.get("session_id") or "").strip()
+    message = (args.get("message") or "").strip()
+
+    if not session_id:
+        return json.dumps({"error": "session_id is required"})
+    if not message:
+        return json.dumps({"error": "message is required"})
+
+    from .interactive import send_message
+
+    result = send_message(
+        session_id=session_id,
+        message=message,
+        idle_timeout=float(args.get("idle_timeout", 3.0)),
+        max_wait=float(args.get("max_wait", 300)),
+    )
+
+    return json.dumps(result, ensure_ascii=False)
+
+
+def qwen_session_read(args: dict, **kwargs) -> str:
+    """Read output from an interactive session without sending."""
+    session_id = (args.get("session_id") or "").strip()
+    if not session_id:
+        return json.dumps({"error": "session_id is required"})
+
+    from .interactive import read_output
+
+    result = read_output(
+        session_id=session_id,
+        full=bool(args.get("full", False)),
+    )
+
+    return json.dumps(result, ensure_ascii=False)
+
+
+def qwen_session_wait(args: dict, **kwargs) -> str:
+    """Wait for an interactive session's output to stabilize."""
+    session_id = (args.get("session_id") or "").strip()
+    if not session_id:
+        return json.dumps({"error": "session_id is required"})
+
+    from .interactive import wait_for_idle
+
+    result = wait_for_idle(
+        session_id=session_id,
+        idle_timeout=float(args.get("idle_timeout", 3.0)),
+        max_wait=float(args.get("max_wait", 300)),
+    )
+
+    return json.dumps(result, ensure_ascii=False)
+
+
+def qwen_session_stop(args: dict, **kwargs) -> str:
+    """Close an interactive Qwen session."""
+    session_id = (args.get("session_id") or "").strip()
+    if not session_id:
+        return json.dumps({"error": "session_id is required"})
+
+    from .interactive import stop_session
+
+    result = stop_session(session_id=session_id)
+    return json.dumps(result, ensure_ascii=False)
+
+
+def qwen_session_list(args: dict, **kwargs) -> str:
+    """List all interactive sessions."""
+    from .interactive import list_sessions
+
+    sessions = list_sessions()
+    if not sessions:
+        return json.dumps({"message": "No interactive Qwen sessions in this Hermes session"})
+
+    return json.dumps({
+        "sessions": [
+            {
+                "session_id": s.session_id,
+                "status": s.status,
+                "working_dir": s.working_dir,
+                "created_at": time.strftime("%H:%M:%S", time.localtime(s.created_at)),
+                "duration_seconds": round(time.time() - s.created_at, 1),
+                "process_alive": s.is_alive,
+                "error": s.error,
+            }
+            for s in sessions
+        ]
+    }, ensure_ascii=False)
+
+
 def qwen_check(args: dict, **kwargs) -> str:
     """Check Qwen Code installation and authentication status."""
     qwen_bin = _find_qwen()

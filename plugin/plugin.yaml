@@ -9,6 +9,12 @@ provides_tools:
   - qwen_task_result
   - qwen_sessions
   - qwen_check
+  - qwen_session_start
+  - qwen_session_send
+  - qwen_session_read
+  - qwen_session_wait
+  - qwen_session_stop
+  - qwen_session_list
 provides_hooks:
   - pre_llm_call
   - on_session_end
