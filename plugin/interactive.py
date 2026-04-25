@@ -88,6 +88,8 @@ class QwenInteractiveSession:
 
     # Error detail if status == "error"
     error: Optional[str] = None
+    _rows: int = field(default=50, repr=False)
+    _cols: int = field(default=160, repr=False)
 
     @property
     def is_alive(self) -> bool:
@@ -122,6 +124,18 @@ class QwenInteractiveSession:
                 return 0.0
             return time.time() - self._last_output_time
 
+    def resize(self, rows: int, cols: int) -> None:
+        if self._master_fd < 0:
+            return
+        self._rows = rows
+        self._cols = cols
+        _set_pty_size(self._master_fd, rows, cols)
+        if self._child_pid > 0:
+            try:
+                os.kill(self._child_pid, signal.SIGWINCH)
+            except ProcessLookupError:
+                pass
+
 
 # ---------------------------------------------------------------------------
 # Session store
@@ -151,8 +165,13 @@ def _reader_loop(session: QwenInteractiveSession) -> None:
     master_fd = session._master_fd
     while not session._stop_reader:
         try:
-            # Use select with a short timeout so we can check _stop_reader
-            ready, _, _ = select.select([master_fd], [], [], 0.5)
+            # Use select with a SHORT timeout (50ms) so stop_session can interrupt
+            # within ~50ms instead of being blocked for up to 500ms.
+            ready, _, _ = select.select([master_fd], [], [], 0.05)
+            # Explicit re-check BEFORE the read — eliminates the 500ms race window
+            # where stop_session() sets _stop_reader=True but select() is still blocking.
+            if session._stop_reader:
+                break
             if not ready:
                 # Check if process is still alive during quiet periods
                 if not session.is_alive:
@@ -570,6 +589,32 @@ def wait_for_idle(
             "Qwen is still responding. The background watcher will notify Hermes automatically."
             if timed_out else "Qwen has finished responding."
         ),
+    }
+
+def resize_session(session_id: str, rows: int = 50, cols: int = 160) -> dict:
+    session = _sessions.get(session_id)
+    if not session:
+        return {"error": f"Session {session_id!r} not found"}
+    if session.status == "error":
+        return {"error": f"Session {session_id!r} is in error state: {session.error}"}
+    if session.status == "closed":
+        return {"error": f"Session {session_id!r} is closed"}
+    if not session.is_alive:
+        session.status = "closed"
+        return {"error": f"Session {session_id!r} process has exited"}
+
+    old_rows, old_cols = session._rows, session._cols
+    session.resize(rows, cols)
+    logger.info(
+        "qwen-interactive: session %s resized %dx%d -> %dx%d",
+        session_id, old_rows, old_cols, rows, cols,
+    )
+    return {
+        "status": session.status,
+        "session_id": session_id,
+        "old_size": f"{old_rows}x{old_cols}",
+        "new_size": f"{rows}x{cols}",
+        "message": f"Session resized from {old_rows}x{old_cols} to {rows}x{cols}.",
     }
 
 
