@@ -12,8 +12,12 @@ A Python plugin for the Hermes Agent framework that bridges to `Qwen Code` (the 
 
 ### Phase 1: Reliability & Robustness
 
-**1. PTY Signal Handling Race Conditions**
-`stop_session()` sends SIGINT twice, types `exit`, then SIGKILLS. There's a window where the child process could receive signals while the reader thread is blocking on `select()`. Add proper signal handling with `sigaction` or at minimum a timeout-based unblock of the select call.
+**1. PTY Signal Handling Race Conditions** ✅ DONE (hermes_hourly 2026-04-26)
+`stop_session()` sends SIGINT twice, types `exit`, then SIGKILL. There's a window where the child process could receive signals while the reader thread is blocking on `select()`.
+- Fixed: reduced `select()` timeout from 500ms → 50ms
+- Fixed: re-check `_stop_reader` after select() returns, BEFORE os.read()
+- Result: stop_session() interrupt latency reduced from 500ms → ~50ms
+- Tests: 5 passing in tests/test_interactive.py
 
 **2. Qwen Code Version Compatibility Matrix**
 The parser handles both snake_case and camelCase for fields (Qwen Code 0.14+ vs older). Add explicit version detection in `qwen_check` that maps detected versions to known field layouts, making failures actionable rather than falling back to defaults.
